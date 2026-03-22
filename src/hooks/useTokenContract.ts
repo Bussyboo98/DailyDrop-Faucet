@@ -1,6 +1,6 @@
 // useTokenContract.ts
 import { useMemo } from "react";
-import { Contract, ethers } from "ethers";
+import { Contract } from "ethers";
 import { DAILYDROP_ABI } from '../ABI/faucet';
 import useRunners from "./useRunner"; 
 

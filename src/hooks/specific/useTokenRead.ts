@@ -13,7 +13,7 @@ export const useTokenRead = () => {
 
   
 
-  // 1️⃣ Get user balance
+  //  Get user balance
   const getBalance = useCallback(async () => {
     if (!address) return null;
     if (!contract) {
@@ -32,7 +32,7 @@ export const useTokenRead = () => {
     }
   }, [address, contract]);
 
-  // 2️⃣ Total supply
+  //  Total supply
   const getTotalSupply = useCallback(async () => {
     if (!contract) {
       toast.error("Token contract not available");
@@ -50,7 +50,7 @@ export const useTokenRead = () => {
     }
   }, [contract]);
 
-  // 3️⃣ Claim cooldown for user
+  //  Claim cooldown for user
   const getClaimCooldown = useCallback(async () => {
     if (!address) return null;
     if (!contract) {
@@ -72,7 +72,7 @@ export const useTokenRead = () => {
     }
   }, [address, contract]);
 
-  // 4️⃣ Total claims by user
+  //  Total claims by user
  const getUserClaims = useCallback(async () => {
   if (!address || !contract) return null;
 

@@ -4,7 +4,7 @@ import { formatAddress } from "../utils";
 import { useTokenRead } from "../hooks/specific/useTokenRead";
 import { useTokenWrite } from "../hooks/specific/useTokenWrite";
 import { toast } from "react-toastify";
-import { appkit, liskTestnet } from "../connection";
+import { liskTestnet } from "../connection";
 
 
 const FaucetVisual = () => (
