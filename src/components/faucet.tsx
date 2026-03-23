@@ -314,7 +314,7 @@ export default function LandingPage() {
           {/* LEFT */}
           <div>
             <h1 className="font-display animate-slide-up delay-1"
-              style={{ fontSize: "clamp(42px, 5vw, 68px)", fontWeight: 800, lineHeight: 1.05, marginBottom: 24 }}>
+              style={{ fontSize: "clamp(42px, 5vw, 68px)", fontWeight: 800, lineHeight: 1.05, marginBottom: 24, color: "white" }}>
               Claim Free<br />
               <span className="animate-shimmer">Tokens Daily.</span><br />
               No Strings.
@@ -328,7 +328,7 @@ export default function LandingPage() {
 
             {address ? (
               <>
-                <div style={{ display: "flex", gap: 14, marginBottom: 28, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 14, marginBottom: 28, flexWrap: "wrap", color:"white" }}>
                   {[
                     { label: "Balance",      value: balance     != null ? `${balance} DRP`     : "..." },
                     { label: "Total Claims", value: claims      != null ? String(claims)        : "..." },
