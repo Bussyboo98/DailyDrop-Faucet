@@ -11,6 +11,7 @@ export const DAILYDROP_ABI = [
   "function faucetAmount() view returns (uint256)",
   "function cooldown() view returns (uint256)",
   "function claimCount(address) view returns (uint256)",
+  "function lastRequest(address) view returns (uint256)",
 
   // Write functions
   "function transfer(address to, uint256 value) returns (bool)",
@@ -18,7 +19,7 @@ export const DAILYDROP_ABI = [
   "function transferFrom(address from, address to, uint256 value) returns (bool)",
   "function mint(address to, uint256 amount)",
   "function requestToken()",
-  "function lastRequest(address) view returns (uint256)"
+  
 
 ] as const;
 

@@ -80,26 +80,28 @@ export const useTokenRead = () => {
   }, [contract]);
 
   //  Claim cooldown remaining for user 
-  const getClaimCooldown = useCallback(async () => {
-    if (!address) return null;
-    if (!contract) {
-      toast.error("Token contract not available");
-      return null;
-    }
-    try {
-      setIsLoading(true);
-      const last = await contract.lastRequest(address);
-      const cd   = await contract.cooldown();
-      const now  = Math.floor(Date.now() / 1000);
-      return Math.max(Number(last) + Number(cd) - now, 0);
-      
-    } catch {
-      toast.error("Error fetching claim cooldown");
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [address, contract]);
+const getClaimCooldown = useCallback(async () => {
+  if (!address) return null;
+  if (!contract) return null;
+  try {
+    setIsLoading(true);
+    const last = await contract.lastRequest(address);
+    const cd   = await contract.cooldown();
+    const now  = Math.floor(Date.now() / 1000);
+
+    console.log("last:", Number(last));
+    console.log("cd:",   Number(cd));
+    console.log("now:",  now);
+    console.log("remaining:", Number(last) + Number(cd) - now);
+
+    return Math.max(Number(last) + Number(cd) - now, 0);
+  } catch (err: any) {
+    console.error("getClaimCooldown error:", err?.message);
+    return null;
+  } finally {
+    setIsLoading(false);
+  }
+}, [address, contract]);
 
   //  Cooldown duration (e.g. "24h") ─
   const getCooldownDuration = useCallback(async () => {

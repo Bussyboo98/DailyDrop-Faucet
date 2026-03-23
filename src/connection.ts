@@ -42,6 +42,9 @@ export const appkit = createAppKit({
     allWallets: true,
     email: false,
     socials: [],
+    //— disables the sign message / SIWE prompt on connect
+      onramp: false,
+    swaps: false,
   },
 });
 

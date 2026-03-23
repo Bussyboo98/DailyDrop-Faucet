@@ -4,9 +4,10 @@ import { formatAddress } from "../utils";
 import { useTokenRead } from "../hooks/specific/useTokenRead";
 import { useTokenWrite } from "../hooks/specific/useTokenWrite";
 import { toast } from "react-toastify";
-import { liskTestnet } from "../connection";
+import { appkit, liskTestnet } from "../connection";
 
-//  Faucet Visual 
+
+// Faucet Visual
 const FaucetVisual = () => (
   <div style={{ position: "relative", width: 340, height: 340, margin: "0 auto" }}>
     {[0, 1, 2].map((i) => (
@@ -83,14 +84,14 @@ const FaucetVisual = () => (
         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
       }}>💧</div>
       <div>
-        <div style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 14, color: "var(--gold)" }}>+50 DDT</div>
+        <div style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 14, color: "var(--gold)" }}>+100 DRP</div>
         <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: 11, color: "var(--muted)" }}>Daily Claim</div>
       </div>
     </div>
   </div>
 );
 
-//  Shared input style 
+// Shared input style
 const inputStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.05)",
   border: "1px solid rgba(255,255,255,0.1)",
@@ -104,7 +105,7 @@ const inputStyle: React.CSSProperties = {
   flex: 1,
 };
 
-//  Token Info Row 
+// Token Info Row
 const InfoRow = ({ label, value, last }: { label: string; value: string; last?: boolean }) => (
   <div style={{
     display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -124,63 +125,95 @@ const InfoRow = ({ label, value, last }: { label: string; value: string; last?: 
   </div>
 );
 
-//  Main Page 
+// Countdown Banner
+const CountdownBanner = ({ seconds, formatTime }: { seconds: number; formatTime: (s: number) => string }) => (
+  <div style={{
+    display: "flex", alignItems: "center", gap: 14,
+    background: "rgba(245,197,66,0.06)",
+    border: "1px solid rgba(245,197,66,0.2)",
+    borderRadius: 16, padding: "16px 20px", marginBottom: 16,
+  }}>
+    <span style={{ fontSize: 22, flexShrink: 0 }}>⏳</span>
+    <div>
+      <div style={{
+        fontFamily: "DM Sans, sans-serif", fontSize: 11,
+        color: "var(--muted)", marginBottom: 2,
+        textTransform: "uppercase", letterSpacing: "0.06em",
+      }}>
+        Next claim available in
+      </div>
+      <div className="font-display" style={{ fontSize: 22, fontWeight: 800, color: "var(--gold)" }}>
+        {formatTime(seconds)}
+      </div>
+    </div>
+  </div>
+);
+
+// Main Page
 export default function LandingPage() {
   const { open } = useAppKit();
   const { address } = useAppKitAccount();
-  const { caipNetwork, switchNetwork } = useAppKitNetwork();
-  
+  const { caipNetwork } = useAppKitNetwork();
 
   const { requestToken, mint, transfer, isRequesting } = useTokenWrite();
   const { getBalance, getTotalSupply, getUserClaims, getClaimCooldown, getFaucetAmount } = useTokenRead();
 
-  //  Per-wallet state 
+  // Per-wallet state
   const [balance, setBalance]           = useState<number | null>(null);
   const [totalSupply, setTotalSupply]   = useState<number | null>(null);
   const [claims, setClaims]             = useState<number | null>(null);
-  const [cooldown, setCooldown] = useState<number>(86400);
   const [faucetAmount, setFaucetAmount] = useState<number | null>(null);
   const [claimed, setClaimed]           = useState<boolean>(false);
 
-  //  Token info state 
-  // Pure constants — hardcoded from contract source, no fetch needed
-  const TOKEN_NAME    = "DROP";
-  const TOKEN_SYMBOL  = "DRP";
-  const TOKEN_DECIMALS = "18";
+  // cooldown starts at 0 — real value always comes from the chain via getClaimCooldown()
+  // getClaimCooldown() = lastRequest[wallet] + 24h - now  →  exact seconds remaining
+  // So on every page refresh, the real remaining time is fetched and the ticker picks up from there
+  const [cooldown, setCooldown] = useState<number>(0);
+
+  // Token info state
+  const TOKEN_NAME       = "DROP";
+  const TOKEN_SYMBOL     = "DRP";
+  const TOKEN_DECIMALS   = "18";
   const TOKEN_MAX_SUPPLY = "10,000,000";
   const TOKEN_COOLDOWN   = "24h";
-  // Dynamic — fetched on mount
-  const [infoTotalSupply, setInfoTotalSupply]   = useState<string>("...");
-  const [infoFaucetAmt,   setInfoFaucetAmt]     = useState<string>("...");
-  const [infoLoading,     setInfoLoading]        = useState<boolean>(true);
+  const [infoTotalSupply, setInfoTotalSupply] = useState<string>("...");
+  const [infoFaucetAmt,   setInfoFaucetAmt]   = useState<string>("...");
+  const [infoLoading,     setInfoLoading]     = useState<boolean>(true);
 
-  //  Form inputs 
-  const [mintAmt,      setMintAmt]      = useState<string>("");
-  const [toAddress,    setToAddress]    = useState<string>("");
-  const [transferAmt,  setTransferAmt]  = useState<string>("");
+  // Form inputs
+  const [mintAmt,     setMintAmt]     = useState<string>("");
+  const [toAddress,   setToAddress]   = useState<string>("");
+  const [transferAmt, setTransferAmt] = useState<string>("");
 
-  //  Network check 
-  const wrongNetwork = !!caipNetwork && Number(caipNetwork.id) !== Number(liskTestnet.id);
+  // Network check
+  // const wrongNetwork = !!caipNetwork && Number(caipNetwork.id) !== Number(liskTestnet.id);
+  // const wrongNetwork = !!caipNetwork && Number(caipNetwork.id) !== 4202;
+  const wrongNetwork = caipNetwork != null && Number(caipNetwork.id) !== 4202;
+  // const wrongNetwork = !!caipNetwork && caipNetwork.caipNetworkId !== liskTestnet.caipNetworkId;
 
-  //  Load token info on mount 
+  // Load global token info
+  // Extracted as a function so we can call it after claim/mint to refresh total supply
+  const loadTokenInfo = async () => {
+    setInfoLoading(true);
+    try {
+      const [ts, fa] = await Promise.all([getTotalSupply(), getFaucetAmount()]);
+      if (ts != null) setInfoTotalSupply(Number(ts).toLocaleString());
+      if (fa != null) setInfoFaucetAmt(String(fa));
+    } catch {
+      setInfoTotalSupply("—");
+      setInfoFaucetAmt("—");
+    } finally {
+      setInfoLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setInfoLoading(true);
-      try {
-        const [ts, fa] = await Promise.all([getTotalSupply(), getFaucetAmount()]);
-        if (ts != null) setInfoTotalSupply(Number(ts).toLocaleString());
-        if (fa != null) setInfoFaucetAmt(String(fa));
-      } catch {
-        setInfoTotalSupply("—");
-        setInfoFaucetAmt("—");
-      } finally {
-        setInfoLoading(false);
-      }
-    };
-    load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    loadTokenInfo();
+  }, []); 
 
-  //  Load per-wallet data 
+  // Load per-wallet data
+  // On every connect/refresh, getClaimCooldown() reads lastRequest from the chain
+  // and returns the exact remaining seconds — so the countdown is always accurate
   const refreshData = async () => {
     if (!address) return;
     const [b, ts, c, cd, fa] = await Promise.all([
@@ -189,44 +222,72 @@ export default function LandingPage() {
     if (b  != null) setBalance(Number(b));
     if (ts != null) setTotalSupply(Number(ts));
     if (c  != null) setClaims(Number(c));
-    if (cd != null) setCooldown(cd);
+    if (cd != null) setCooldown(cd); 
     if (fa != null) setFaucetAmount(Number(fa));
   };
 
-  useEffect(() => { refreshData(); }, [address]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  //  Wrong network toast 
   useEffect(() => {
-    if (wrongNetwork) toast.error("Please switch to Lisk Sepolia!", { toastId: "wrong-network" });
-  }, [wrongNetwork]);
+    refreshData();
+    setClaimed(false); 
+  }, [address]); 
 
-  // Ticks every second while cooldown is active
+
+
+  // Live countdown ticker 
+  // Picks up from wherever getClaimCooldown() left off and counts down 1s at a time
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const interval = setInterval(() => {
-      setCooldown(prev => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [cooldown]);
+  if (cooldown <= 0) return;
 
-  const formatTime = (s: number) =>
-    `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s`;
+  const interval = setInterval(() => {
+    setCooldown(prev => (prev <= 1 ? 0 : prev - 1));
+  }, 1000);
 
-  //  Handlers 
-  const handleSwitchNetwork = async () => {
-    try {
-      await switchNetwork(liskTestnet);
-      toast.success("Switched to Lisk Sepolia!");
-    } catch {
-      toast.error("Switch failed — please change manually in your wallet.");
-    }
+  return () => clearInterval(interval);
+}, [cooldown]);
+
+  // Helpers
+  const formatTime = (s: number) => {
+    const h   = Math.floor(s / 3600);
+    const m   = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m ${sec}s`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
   };
 
-  const handleClaim = async () => {
-    if (wrongNetwork) { toast.error("Wrong network!"); return; }
-    const success = await requestToken();
-    if (success) { setClaimed(true); await refreshData(); }
-  };
+  // Handlers
+const handleSwitchNetwork = async () => {
+  try {
+    await appkit.switchNetwork(liskTestnet);
+    toast.success("Switched to Lisk Sepolia!");
+  } catch {
+    // If programmatic switch fails, open the modal so user can switch manually
+    open();
+    toast.error("Please switch to Lisk Sepolia in your wallet.", { toastId: "wrong-network" });
+  }
+};
+
+  // Wrong network toast
+ useEffect(() => {
+  if (wrongNetwork) {
+    toast.error("Wrong network! Please switch to Lisk Sepolia.");
+    handleSwitchNetwork(); // auto-attempt switch as soon as wrong network detected
+  }
+}, [wrongNetwork]);
+
+const handleClaim = async () => {
+  if (wrongNetwork) return;
+
+  const success = await requestToken();
+
+  if (success) {
+    setClaimed(true);
+
+    setTimeout(async () => {
+      await refreshData();
+    }, 2000); // wait for blockchain update
+  }
+};
 
   const handleMint = async () => {
     if (wrongNetwork) { toast.error("Wrong network!"); return; }
@@ -235,7 +296,11 @@ export default function LandingPage() {
     if (!amount || amount <= 0) { toast.error("Enter a valid amount."); return; }
     if (amount > 10000)          { toast.error("Max 10,000 per mint."); return; }
     const success = await mint(address, amount);
-    if (success) { setMintAmt(""); await refreshData(); }
+    if (success) {
+      setMintAmt("");
+      await refreshData();
+      await loadTokenInfo(); 
+    }
   };
 
   const handleTransfer = async () => {
@@ -250,7 +315,7 @@ export default function LandingPage() {
     if (success) { setToAddress(""); setTransferAmt(""); await refreshData(); }
   };
 
-  // 
+  //
   return (
     <>
       {/* NAV */}
@@ -314,44 +379,51 @@ export default function LandingPage() {
           {/* LEFT */}
           <div>
             <h1 className="font-display animate-slide-up delay-1"
-              style={{ fontSize: "clamp(42px, 5vw, 68px)", fontWeight: 800, lineHeight: 1.05, marginBottom: 24, color: "white" }}>
+              style={{ fontSize: "clamp(42px, 5vw, 68px)", fontWeight: 800, lineHeight: 1.05, marginBottom: 24, color:"white" }}>
               Claim Free<br />
-              <span className="animate-shimmer">Tokens Daily.</span><br />
+              <span className="animate-shimmer " >Tokens Daily.</span><br />
               No Strings.
             </h1>
 
             <p className="animate-slide-up delay-2"
               style={{ fontSize: 17, lineHeight: 1.7, color: "var(--muted)", maxWidth: 440, marginBottom: 32 }}>
-              DailyDrop distributes free tokens every 24 hours. Connect your wallet, claim your share,
+              DailyDrop distributes free 100 DRP tokens every 24 hours. Connect your wallet, claim your share,
               and start building your on-chain portfolio — completely free.
             </p>
 
             {address ? (
               <>
-                <div style={{ display: "flex", gap: 14, marginBottom: 28, flexWrap: "wrap", color:"white" }}>
+                {/* Stats */}
+                <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+                 
                   {[
-                    { label: "Balance",      value: balance     != null ? `${balance} DRP`     : "..." },
-                    { label: "Total Claims", value: claims      != null ? String(claims)        : "..." },
-                    { label: "Total Supply", value: totalSupply != null ? `${totalSupply} DRP`  : "..." },
+                    { label: "Balance",      value: balance     != null ? `${balance} DRP`    : "..." },
+                    { label: "Total Claims", value: claims      != null ? String(claims)       : "..." },
+                    { label: "Total Supply", value: totalSupply != null ? `${totalSupply} DRP` : "..." },
                   ].map(({ label, value }) => (
                     <div key={label} style={{
                       background: "var(--surface2)", border: "1px solid rgba(255,255,255,0.06)",
-                      borderRadius: 16, padding: "16px 20px", flex: 1, minWidth: 110,
+                      borderRadius: 16, padding: "16px 20px", flex: 1, minWidth: 110, overflow: "hidden",
                     }}>
-                      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</div>
-                      <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "var(--gold)" }}>{value}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                        {label}
+                      </div>
+                      <div className="font-display" style={{ fontSize: 16, fontWeight: 800, color: "var(--gold)", wordBreak: "break-all" }}>
+                        {value}
+                      </div>
                     </div>
                   ))}
                 </div>
-                 
 
+                {/* Countdown — only shown when on cooldown */}
+                {cooldown > 0 && <CountdownBanner seconds={cooldown} formatTime={formatTime} />}
 
                 <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                   <button className="btn-primary"
                     disabled={cooldown > 0 || isRequesting || wrongNetwork}
                     onClick={handleClaim}>
                     {isRequesting ? "Claiming..."
-                      : cooldown > 0 ? `⏳ ${formatTime(cooldown)}`
+                      : cooldown > 0 ? "On Cooldown"
                       : claimed    ? "✓ Claimed Today!"
                       : "⚡ Claim Tokens"}
                   </button>
@@ -383,7 +455,6 @@ export default function LandingPage() {
           <p style={{ color: "var(--muted)", fontSize: 14, marginBottom: 28 }}>
             Live data read directly from the contract.
           </p>
-
           <div style={{
             background: "linear-gradient(135deg, #0D1120 0%, #141929 100%)",
             border: "1px solid rgba(245,197,66,0.15)",
@@ -395,13 +466,13 @@ export default function LandingPage() {
               </div>
             ) : (
               <>
-                <InfoRow label="Token Name"    value={TOKEN_NAME} />
-                <InfoRow label="Symbol"        value={TOKEN_SYMBOL} />
-                <InfoRow label="Decimals"      value={TOKEN_DECIMALS} />
-                <InfoRow label="Total Supply"  value={`${infoTotalSupply} ${TOKEN_SYMBOL}`} />
-                <InfoRow label="Max Supply"    value={`${TOKEN_MAX_SUPPLY} ${TOKEN_SYMBOL}`} />
+                <InfoRow label="Token Name" value={TOKEN_NAME} />
+                <InfoRow label="Symbol" value={TOKEN_SYMBOL} />
+                <InfoRow label="Decimals" value={TOKEN_DECIMALS} />
+                <InfoRow label="Total Supply" value={`${infoTotalSupply} ${TOKEN_SYMBOL}`} />
+                <InfoRow label="Max Supply" value={`${TOKEN_MAX_SUPPLY} ${TOKEN_SYMBOL}`} />
                 <InfoRow label="Faucet Amount" value={`${infoFaucetAmt} ${TOKEN_SYMBOL} / claim`} />
-                <InfoRow label="Cooldown"      value={TOKEN_COOLDOWN} last />
+                <InfoRow label="Cooldown" value={TOKEN_COOLDOWN} last />
               </>
             )}
           </div>
@@ -421,35 +492,18 @@ export default function LandingPage() {
                 Token Management
               </h2>
 
-              {/* Claim */}
-                {cooldown > 0 && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 14,
-                      background: "rgba(245,197,66,0.06)",
-                      border: "1px solid rgba(245,197,66,0.2)",
-                      borderRadius: 16, padding: "16px 20px", marginBottom: 16,
-                    }}>
-                      <span style={{ fontSize: 22 }}>⏳</span>
-                      <div>
-                        <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: 12, color: "var(--muted)", marginBottom: 2 }}>
-                          NEXT CLAIM AVAILABLE IN
-                        </div>
-                        <div className="font-display" style={{ fontSize: 22, fontWeight: 800, color: "var(--gold)" }}>
-                          {formatTime(cooldown)}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              {/* Request Tokens */}
               <div style={{ marginBottom: 36, paddingBottom: 36, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <h3 style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Request Tokens</h3>
                 <p style={{ color: "var(--muted)", fontSize: 14, marginBottom: 16 }}>
                   Claim {faucetAmount ?? "..."} DRP from the faucet. One claim per 24 hours.
                 </p>
+                {cooldown > 0 && <CountdownBanner seconds={cooldown} formatTime={formatTime} />}
                 <button className="btn-primary"
                   disabled={cooldown > 0 || isRequesting || wrongNetwork}
                   onClick={handleClaim}>
                   {isRequesting ? "Claiming..."
-                    : cooldown > 0 ? `⏳ ${formatTime(cooldown)}`
+                    : cooldown > 0 ? "On Cooldown"
                     : claimed    ? "✓ Claimed!"
                     : `Request ${faucetAmount ?? "..."} DRP`}
                 </button>
