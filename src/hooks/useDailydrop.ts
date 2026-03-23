@@ -14,7 +14,7 @@ export const useDailyDrop = () => {
     getTotalSupply,
     getUserClaims,
     getClaimCooldown,
-    getFaucetAmount, // ✅ Added faucet
+    getFaucetAmount, 
   } = useTokenRead();
 
   // --- Write functions ---
@@ -45,7 +45,7 @@ export const useDailyDrop = () => {
       const ts = await getTotalSupply();
       const c = await getUserClaims();
       const cd = await getClaimCooldown();
-      const fa = await getFaucetAmount(); // ✅ Fetch faucet amount
+      const fa = await getFaucetAmount(); 
 
       if (b !== null) setBalance(Number(b));
       if (ts !== null) setTotalSupply(Number(ts));
@@ -94,12 +94,12 @@ export const useDailyDrop = () => {
     totalSupply,
     claims,
     cooldown,
-    faucetAmount, // ✅ return faucet amount
+    faucetAmount, 
     formatTime,
     isClaiming,
     claim,
     mint,
     transfer,
-    refresh: fetchData, // optional manual refresh
+    refresh: fetchData,
   };
 };

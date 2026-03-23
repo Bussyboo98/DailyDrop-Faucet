@@ -6,7 +6,7 @@ import { useTokenWrite } from "../hooks/specific/useTokenWrite";
 import { toast } from "react-toastify";
 import { liskTestnet } from "../connection";
 
-
+// ─── Faucet Visual ────────────────────────────────────────────────────────────
 const FaucetVisual = () => (
   <div style={{ position: "relative", width: 340, height: 340, margin: "0 auto" }}>
     {[0, 1, 2].map((i) => (
@@ -90,7 +90,7 @@ const FaucetVisual = () => (
   </div>
 );
 
-
+// ─── Shared input style ───────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.05)",
   border: "1px solid rgba(255,255,255,0.1)",
@@ -104,62 +104,106 @@ const inputStyle: React.CSSProperties = {
   flex: 1,
 };
 
+// ─── Token Info Row ───────────────────────────────────────────────────────────
+const InfoRow = ({ label, value, last }: { label: string; value: string; last?: boolean }) => (
+  <div style={{
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "18px 32px",
+    borderBottom: last ? "none" : "1px solid rgba(255,255,255,0.05)",
+  }}>
+    <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: 14, color: "var(--muted)" }}>
+      {label}
+    </span>
+    <span style={{
+      fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 15, color: "var(--text)",
+      background: "rgba(245,197,66,0.08)", border: "1px solid rgba(245,197,66,0.15)",
+      borderRadius: 8, padding: "4px 12px",
+    }}>
+      {value}
+    </span>
+  </div>
+);
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const { open } = useAppKit();
   const { address } = useAppKitAccount();
-
-  //  useAppKitNetwork — correct hook for reading + switching network
   const { caipNetwork, switchNetwork } = useAppKitNetwork();
 
   const { requestToken, mint, transfer, isRequesting } = useTokenWrite();
   const { getBalance, getTotalSupply, getUserClaims, getClaimCooldown, getFaucetAmount } = useTokenRead();
 
-
-  const [balance, setBalance] = useState<number | null>(null);
+  // ── Per-wallet state ──────────────────────────────────────
+  const [balance, setBalance]           = useState<number | null>(null);
   const [totalSupply, setTotalSupply]   = useState<number | null>(null);
-  const [claims, setClaims]   = useState<number | null>(null);
-  const [cooldown, setCooldown]  = useState(0);
+  const [claims, setClaims]             = useState<number | null>(null);
+  const [cooldown, setCooldown]         = useState<number>(0);
   const [faucetAmount, setFaucetAmount] = useState<number | null>(null);
-  const [claimed, setClaimed] = useState(false);
+  const [claimed, setClaimed]           = useState<boolean>(false);
 
+  // ── Token info state ──────────────────────────────────────
+  // Pure constants — hardcoded from contract source, no fetch needed
+  const TOKEN_NAME    = "DROP";
+  const TOKEN_SYMBOL  = "DRP";
+  const TOKEN_DECIMALS = "18";
+  const TOKEN_MAX_SUPPLY = "10,000,000";
+  const TOKEN_COOLDOWN   = "24h";
+  // Dynamic — fetched on mount
+  const [infoTotalSupply, setInfoTotalSupply]   = useState<string>("...");
+  const [infoFaucetAmt,   setInfoFaucetAmt]     = useState<string>("...");
+  const [infoLoading,     setInfoLoading]        = useState<boolean>(true);
 
-  const [mintAmt, setMintAmt] = useState("");
-  const [toAddress, setToAddress]    = useState("");
-  const [transferAmt, setTransferAmt]= useState("");
+  // ── Form inputs ───────────────────────────────────────────
+  const [mintAmt,      setMintAmt]      = useState<string>("");
+  const [toAddress,    setToAddress]    = useState<string>("");
+  const [transferAmt,  setTransferAmt]  = useState<string>("");
 
-
+  // ── Network check ─────────────────────────────────────────
   const wrongNetwork = !!caipNetwork && Number(caipNetwork.id) !== Number(liskTestnet.id);
 
+  // ── Load token info on mount ──────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setInfoLoading(true);
+      try {
+        const [ts, fa] = await Promise.all([getTotalSupply(), getFaucetAmount()]);
+        if (ts != null) setInfoTotalSupply(Number(ts).toLocaleString());
+        if (fa != null) setInfoFaucetAmt(String(fa));
+      } catch {
+        setInfoTotalSupply("—");
+        setInfoFaucetAmt("—");
+      } finally {
+        setInfoLoading(false);
+      }
+    };
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Load per-wallet data ──────────────────────────────────
   const refreshData = async () => {
     if (!address) return;
     const [b, ts, c, cd, fa] = await Promise.all([
-      getBalance(),
-      getTotalSupply(),
-      getUserClaims(),
-      getClaimCooldown(),
-      getFaucetAmount(),
+      getBalance(), getTotalSupply(), getUserClaims(), getClaimCooldown(), getFaucetAmount(),
     ]);
-    if (b  !== null) setBalance(Number(b));
-    if (ts !== null) setTotalSupply(Number(ts));
-    if (c  !== null) setClaims(Number(c));
-    if (cd !== null) setCooldown(cd);
-    if (fa !== null) setFaucetAmount(Number(fa));
+    if (b  != null) setBalance(Number(b));
+    if (ts != null) setTotalSupply(Number(ts));
+    if (c  != null) setClaims(Number(c));
+    if (cd != null) setCooldown(cd);
+    if (fa != null) setFaucetAmount(Number(fa));
   };
 
-  useEffect(() => { refreshData(); }, [address]);
+  useEffect(() => { refreshData(); }, [address]); // eslint-disable-line react-hooks/exhaustive-deps
 
-
+  // ── Wrong network toast ───────────────────────────────────
   useEffect(() => {
-    if (wrongNetwork) {
-      toast.error("Please switch to Lisk Sepolia!", { toastId: "wrong-network" });
-    }
+    if (wrongNetwork) toast.error("Please switch to Lisk Sepolia!", { toastId: "wrong-network" });
   }, [wrongNetwork]);
 
+  // ── Helpers ───────────────────────────────────────────────
   const formatTime = (s: number) =>
     `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s`;
 
-//switchNetwork takes the full network object (not just id)
+  // ── Handlers ──────────────────────────────────────────────
   const handleSwitchNetwork = async () => {
     try {
       await switchNetwork(liskTestnet);
@@ -172,19 +216,15 @@ export default function LandingPage() {
   const handleClaim = async () => {
     if (wrongNetwork) { toast.error("Wrong network!"); return; }
     const success = await requestToken();
-    if (success) {
-      setClaimed(true);
-      await refreshData();
-    }
+    if (success) { setClaimed(true); await refreshData(); }
   };
 
-  
   const handleMint = async () => {
     if (wrongNetwork) { toast.error("Wrong network!"); return; }
     if (!address)     { toast.error("Connect your wallet first."); return; }
     const amount = Number(mintAmt);
-    if (!amount || amount <= 0)  { toast.error("Enter a valid amount."); return; }
-    if (amount > 10000)           { toast.error("Max 10,000 per mint."); return; }
+    if (!amount || amount <= 0) { toast.error("Enter a valid amount."); return; }
+    if (amount > 10000)          { toast.error("Max 10,000 per mint."); return; }
     const success = await mint(address, amount);
     if (success) { setMintAmt(""); await refreshData(); }
   };
@@ -201,9 +241,10 @@ export default function LandingPage() {
     if (success) { setToAddress(""); setTransferAmt(""); await refreshData(); }
   };
 
+  // ─────────────────────────────────────────────────────────
   return (
     <>
-    
+      {/* NAV */}
       <nav style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -222,30 +263,23 @@ export default function LandingPage() {
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {/* ✅ Wrong-network button in nav */}
           {wrongNetwork && (
             <button onClick={handleSwitchNetwork} style={{
               display: "flex", alignItems: "center", gap: 8,
-              background: "rgba(239,68,68,0.15)",
-              border: "1px solid rgba(239,68,68,0.4)",
+              background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)",
               color: "#EF4444", borderRadius: 100, padding: "8px 16px",
-              fontFamily: "DM Sans, sans-serif", fontSize: 13, fontWeight: 600,
-              cursor: "pointer",
+              fontFamily: "DM Sans, sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer",
             }}>
               ⚠️ Switch to Lisk Sepolia
             </button>
           )}
-          <button
-            className="btn-primary"
-            onClick={() => open()}
-            style={{ padding: "10px 22px", fontSize: 13, animation: "none" }}
-          >
+          <button className="btn-primary" onClick={() => open()}
+            style={{ padding: "10px 22px", fontSize: 13, animation: "none" }}>
             {address ? (
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{
-                  width: 8, height: 8, borderRadius: "50%",
+                  width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
                   background: wrongNetwork ? "#EF4444" : "#22C55E",
-                  flexShrink: 0,
                 }} />
                 {formatAddress(address)}
               </span>
@@ -254,7 +288,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
- 
+      {/* HERO */}
       <section style={{
         position: "relative", overflow: "hidden",
         minHeight: "90vh", display: "flex", alignItems: "center",
@@ -265,9 +299,8 @@ export default function LandingPage() {
         <div className="orb" style={{ width: 300, height: 300, background: "rgba(108,59,255,0.1)", top: "30%", left: "40%" }} />
 
         <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr",
-          gap: 80, alignItems: "center",
-          maxWidth: 1200, margin: "0 auto", width: "100%",
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80,
+          alignItems: "center", maxWidth: 1200, margin: "0 auto", width: "100%",
         }}>
           {/* LEFT */}
           <div>
@@ -286,12 +319,11 @@ export default function LandingPage() {
 
             {address ? (
               <>
-                {/* Stats */}
                 <div style={{ display: "flex", gap: 14, marginBottom: 28, flexWrap: "wrap" }}>
                   {[
-                    { label: "Balance",      value: balance     !== null ? `${balance} DDT`    : "…" },
-                    { label: "Total Claims", value: claims      !== null ? String(claims)       : "…" },
-                    { label: "Total Supply", value: totalSupply !== null ? `${totalSupply} DDT` : "…" },
+                    { label: "Balance",      value: balance     != null ? `${balance} DRP`     : "..." },
+                    { label: "Total Claims", value: claims      != null ? String(claims)        : "..." },
+                    { label: "Total Supply", value: totalSupply != null ? `${totalSupply} DRP`  : "..." },
                   ].map(({ label, value }) => (
                     <div key={label} style={{
                       background: "var(--surface2)", border: "1px solid rgba(255,255,255,0.06)",
@@ -304,17 +336,12 @@ export default function LandingPage() {
                 </div>
 
                 <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                  <button
-                    className="btn-primary"
+                  <button className="btn-primary"
                     disabled={cooldown > 0 || isRequesting || wrongNetwork}
-                    onClick={handleClaim}
-                  >
-                    {isRequesting
-                      ? "Claiming…"
-                      : cooldown > 0
-                      ? `⏳ ${formatTime(cooldown)}`
-                      : claimed
-                      ? "✓ Claimed Today!"
+                    onClick={handleClaim}>
+                    {isRequesting ? "Claiming..."
+                      : cooldown > 0 ? `⏳ ${formatTime(cooldown)}`
+                      : claimed    ? "✓ Claimed Today!"
                       : "⚡ Claim Tokens"}
                   </button>
                   <button className="btn-secondary">How it works ↗</button>
@@ -335,7 +362,42 @@ export default function LandingPage() {
         </div>
       </section>
 
-   
+      {/* TOKEN INFO */}
+      <section style={{ padding: "0 48px 80px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <h2 className="font-display"
+            style={{ fontSize: 28, fontWeight: 800, marginBottom: 8, color: "var(--text)" }}>
+            Token Info
+          </h2>
+          <p style={{ color: "var(--muted)", fontSize: 14, marginBottom: 28 }}>
+            Live data read directly from the contract.
+          </p>
+
+          <div style={{
+            background: "linear-gradient(135deg, #0D1120 0%, #141929 100%)",
+            border: "1px solid rgba(245,197,66,0.15)",
+            borderRadius: 24, overflow: "hidden",
+          }}>
+            {infoLoading ? (
+              <div style={{ padding: 48, textAlign: "center", color: "var(--muted)", fontFamily: "DM Sans, sans-serif", fontSize: 14 }}>
+                Loading contract data...
+              </div>
+            ) : (
+              <>
+                <InfoRow label="Token Name"    value={TOKEN_NAME} />
+                <InfoRow label="Symbol"        value={TOKEN_SYMBOL} />
+                <InfoRow label="Decimals"      value={TOKEN_DECIMALS} />
+                <InfoRow label="Total Supply"  value={`${infoTotalSupply} ${TOKEN_SYMBOL}`} />
+                <InfoRow label="Max Supply"    value={`${TOKEN_MAX_SUPPLY} ${TOKEN_SYMBOL}`} />
+                <InfoRow label="Faucet Amount" value={`${infoFaucetAmt} ${TOKEN_SYMBOL} / claim`} />
+                <InfoRow label="Cooldown"      value={TOKEN_COOLDOWN} last />
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* TOKEN MANAGEMENT */}
       {address && (
         <section style={{ padding: "0 48px 80px" }}>
           <div style={{ maxWidth: 800, margin: "0 auto" }}>
@@ -352,10 +414,15 @@ export default function LandingPage() {
               <div style={{ marginBottom: 36, paddingBottom: 36, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <h3 style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Request Tokens</h3>
                 <p style={{ color: "var(--muted)", fontSize: 14, marginBottom: 16 }}>
-                  Claim {faucetAmount ?? "…"} DRP from the faucet. One claim per 24 hours.
+                  Claim {faucetAmount ?? "..."} DRP from the faucet. One claim per 24 hours.
                 </p>
-                <button className="btn-primary" disabled={cooldown > 0 || isRequesting || wrongNetwork} onClick={handleClaim}>
-                  {isRequesting ? "Claiming…" : cooldown > 0 ? `⏳ ${formatTime(cooldown)}` : claimed ? "✓ Claimed!" : `Request ${faucetAmount ?? "…"} DRP`}
+                <button className="btn-primary"
+                  disabled={cooldown > 0 || isRequesting || wrongNetwork}
+                  onClick={handleClaim}>
+                  {isRequesting ? "Claiming..."
+                    : cooldown > 0 ? `⏳ ${formatTime(cooldown)}`
+                    : claimed    ? "✓ Claimed!"
+                    : `Request ${faucetAmount ?? "..."} DRP`}
                 </button>
               </div>
 
@@ -366,14 +433,11 @@ export default function LandingPage() {
                   Mint new DRP tokens to your wallet. Max 10,000 per transaction.
                 </p>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <input
-                    type="number"
-                    placeholder="Amount to mint"
-                    value={mintAmt}
-                    onChange={(e) => setMintAmt(e.target.value)}
-                    style={inputStyle}
-                  />
-                  <button className="btn-primary" style={{ animation: "none" }} disabled={wrongNetwork} onClick={handleMint}>
+                  <input type="number" placeholder="Amount to mint"
+                    value={mintAmt} onChange={(e) => setMintAmt(e.target.value)}
+                    style={inputStyle} />
+                  <button className="btn-primary" style={{ animation: "none" }}
+                    disabled={wrongNetwork} onClick={handleMint}>
                     Mint
                   </button>
                 </div>
@@ -386,21 +450,14 @@ export default function LandingPage() {
                   Send DRP tokens to another wallet address.
                 </p>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <input
-                    type="text"
-                    placeholder="Recipient (0x...)"
-                    value={toAddress}
-                    onChange={(e) => setToAddress(e.target.value)}
-                    style={{ ...inputStyle, flex: 2 }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Amount"
-                    value={transferAmt}
-                    onChange={(e) => setTransferAmt(e.target.value)}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <button className="btn-primary" style={{ animation: "none" }} disabled={wrongNetwork} onClick={handleTransfer}>
+                  <input type="text" placeholder="Recipient (0x...)"
+                    value={toAddress} onChange={(e) => setToAddress(e.target.value)}
+                    style={{ ...inputStyle, flex: 2 }} />
+                  <input type="number" placeholder="Amount"
+                    value={transferAmt} onChange={(e) => setTransferAmt(e.target.value)}
+                    style={{ ...inputStyle, flex: 1 }} />
+                  <button className="btn-primary" style={{ animation: "none" }}
+                    disabled={wrongNetwork} onClick={handleTransfer}>
                     Transfer
                   </button>
                 </div>
