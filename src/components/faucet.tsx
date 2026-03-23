@@ -6,7 +6,7 @@ import { useTokenWrite } from "../hooks/specific/useTokenWrite";
 import { toast } from "react-toastify";
 import { liskTestnet } from "../connection";
 
-// ─── Faucet Visual ────────────────────────────────────────────────────────────
+//  Faucet Visual 
 const FaucetVisual = () => (
   <div style={{ position: "relative", width: 340, height: 340, margin: "0 auto" }}>
     {[0, 1, 2].map((i) => (
@@ -90,7 +90,7 @@ const FaucetVisual = () => (
   </div>
 );
 
-// ─── Shared input style ───────────────────────────────────────────────────────
+//  Shared input style 
 const inputStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.05)",
   border: "1px solid rgba(255,255,255,0.1)",
@@ -104,7 +104,7 @@ const inputStyle: React.CSSProperties = {
   flex: 1,
 };
 
-// ─── Token Info Row ───────────────────────────────────────────────────────────
+//  Token Info Row 
 const InfoRow = ({ label, value, last }: { label: string; value: string; last?: boolean }) => (
   <div style={{
     display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -124,24 +124,25 @@ const InfoRow = ({ label, value, last }: { label: string; value: string; last?: 
   </div>
 );
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+//  Main Page 
 export default function LandingPage() {
   const { open } = useAppKit();
   const { address } = useAppKitAccount();
   const { caipNetwork, switchNetwork } = useAppKitNetwork();
+  
 
   const { requestToken, mint, transfer, isRequesting } = useTokenWrite();
   const { getBalance, getTotalSupply, getUserClaims, getClaimCooldown, getFaucetAmount } = useTokenRead();
 
-  // ── Per-wallet state ──────────────────────────────────────
+  //  Per-wallet state 
   const [balance, setBalance]           = useState<number | null>(null);
   const [totalSupply, setTotalSupply]   = useState<number | null>(null);
   const [claims, setClaims]             = useState<number | null>(null);
-  const [cooldown, setCooldown]         = useState<number>(0);
+  const [cooldown, setCooldown] = useState<number>(86400);
   const [faucetAmount, setFaucetAmount] = useState<number | null>(null);
   const [claimed, setClaimed]           = useState<boolean>(false);
 
-  // ── Token info state ──────────────────────────────────────
+  //  Token info state 
   // Pure constants — hardcoded from contract source, no fetch needed
   const TOKEN_NAME    = "DROP";
   const TOKEN_SYMBOL  = "DRP";
@@ -153,15 +154,15 @@ export default function LandingPage() {
   const [infoFaucetAmt,   setInfoFaucetAmt]     = useState<string>("...");
   const [infoLoading,     setInfoLoading]        = useState<boolean>(true);
 
-  // ── Form inputs ───────────────────────────────────────────
+  //  Form inputs 
   const [mintAmt,      setMintAmt]      = useState<string>("");
   const [toAddress,    setToAddress]    = useState<string>("");
   const [transferAmt,  setTransferAmt]  = useState<string>("");
 
-  // ── Network check ─────────────────────────────────────────
+  //  Network check 
   const wrongNetwork = !!caipNetwork && Number(caipNetwork.id) !== Number(liskTestnet.id);
 
-  // ── Load token info on mount ──────────────────────────────
+  //  Load token info on mount 
   useEffect(() => {
     const load = async () => {
       setInfoLoading(true);
@@ -179,7 +180,7 @@ export default function LandingPage() {
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Load per-wallet data ──────────────────────────────────
+  //  Load per-wallet data 
   const refreshData = async () => {
     if (!address) return;
     const [b, ts, c, cd, fa] = await Promise.all([
@@ -194,16 +195,24 @@ export default function LandingPage() {
 
   useEffect(() => { refreshData(); }, [address]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Wrong network toast ───────────────────────────────────
+  //  Wrong network toast 
   useEffect(() => {
     if (wrongNetwork) toast.error("Please switch to Lisk Sepolia!", { toastId: "wrong-network" });
   }, [wrongNetwork]);
 
-  // ── Helpers ───────────────────────────────────────────────
+  // Ticks every second while cooldown is active
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown(prev => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
+
   const formatTime = (s: number) =>
     `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s`;
 
-  // ── Handlers ──────────────────────────────────────────────
+  //  Handlers 
   const handleSwitchNetwork = async () => {
     try {
       await switchNetwork(liskTestnet);
@@ -241,7 +250,7 @@ export default function LandingPage() {
     if (success) { setToAddress(""); setTransferAmt(""); await refreshData(); }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // 
   return (
     <>
       {/* NAV */}
@@ -334,6 +343,8 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
+                 
+
 
                 <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                   <button className="btn-primary"
@@ -411,6 +422,24 @@ export default function LandingPage() {
               </h2>
 
               {/* Claim */}
+                {cooldown > 0 && (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 14,
+                      background: "rgba(245,197,66,0.06)",
+                      border: "1px solid rgba(245,197,66,0.2)",
+                      borderRadius: 16, padding: "16px 20px", marginBottom: 16,
+                    }}>
+                      <span style={{ fontSize: 22 }}>⏳</span>
+                      <div>
+                        <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: 12, color: "var(--muted)", marginBottom: 2 }}>
+                          NEXT CLAIM AVAILABLE IN
+                        </div>
+                        <div className="font-display" style={{ fontSize: 22, fontWeight: 800, color: "var(--gold)" }}>
+                          {formatTime(cooldown)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
               <div style={{ marginBottom: 36, paddingBottom: 36, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <h3 style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Request Tokens</h3>
                 <p style={{ color: "var(--muted)", fontSize: 14, marginBottom: 16 }}>

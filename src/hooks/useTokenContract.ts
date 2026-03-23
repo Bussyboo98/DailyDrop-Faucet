@@ -8,7 +8,7 @@ export const useTokenContract = (withSigner = false) => {
   const { readOnlyProvider, signer } = useRunners();
 
   return useMemo(() => {
-    const address = import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS;
+    const address = import.meta.env.VITE_DROP_CONTRACT_ADDRESS;
 
     if (!address) return null;
 

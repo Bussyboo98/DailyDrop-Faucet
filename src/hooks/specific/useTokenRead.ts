@@ -11,7 +11,7 @@ export const useTokenRead = () => {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  //  Get token name 
+  //  Get token name ─
   const getTokenName = useCallback(async () => {
     if (!contract) return null;
     try {
@@ -21,7 +21,7 @@ export const useTokenRead = () => {
     }
   }, [contract]);
 
-  //  Get token symbol 
+  //  Get token symbol ─
   const getTokenSymbol = useCallback(async () => {
     if (!contract) return null;
     try {
@@ -31,7 +31,7 @@ export const useTokenRead = () => {
     }
   }, [contract]);
 
-  //  Get max supply 
+  //  Get max supply ─
   const getMaxSupply = useCallback(async () => {
     if (!contract) return null;
     try {
@@ -42,7 +42,7 @@ export const useTokenRead = () => {
     }
   }, [contract]);
 
-  //  Get user balance 
+  //  Get user balance ─
   const getBalance = useCallback(async () => {
     if (!address) return null;
     if (!contract) {
@@ -52,7 +52,7 @@ export const useTokenRead = () => {
     try {
       setIsLoading(true);
       const balance = await contract.balanceOf(address);
-      return balance;
+      return Number(formatUnits(balance, 18));
     } catch {
       toast.error("Error fetching balance");
       return null;
@@ -70,7 +70,7 @@ export const useTokenRead = () => {
     try {
       setIsLoading(true);
       const supply = await contract.totalSupply();
-      return supply;
+      return Number(formatUnits(supply, 18));
     } catch {
       toast.error("Error fetching total supply");
       return null;
@@ -92,6 +92,7 @@ export const useTokenRead = () => {
       const cd   = await contract.cooldown();
       const now  = Math.floor(Date.now() / 1000);
       return Math.max(Number(last) + Number(cd) - now, 0);
+      
     } catch {
       toast.error("Error fetching claim cooldown");
       return null;
@@ -100,7 +101,7 @@ export const useTokenRead = () => {
     }
   }, [address, contract]);
 
-  //  Cooldown duration (e.g. "24h") 
+  //  Cooldown duration (e.g. "24h") ─
   const getCooldownDuration = useCallback(async () => {
     if (!contract) return null;
     try {
@@ -111,7 +112,7 @@ export const useTokenRead = () => {
     }
   }, [contract]);
 
-  //  Total claims by user 
+  //  Total claims by user ─
   const getUserClaims = useCallback(async () => {
     if (!address || !contract) return null;
     try {
@@ -129,7 +130,8 @@ export const useTokenRead = () => {
     try {
       const amount = await contract.faucetAmount();
       return Number(formatUnits(amount, 18));
-    } catch {
+    } catch (err: any) {
+      console.error("getFaucetAmount failed:", err?.message ?? err);
       return null;
     }
   }, [contract]);
